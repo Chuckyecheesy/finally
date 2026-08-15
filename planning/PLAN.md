@@ -138,6 +138,7 @@ LLM_MOCK=false
 - If `MASSIVE_API_KEY` is absent or empty → backend uses the built-in market simulator
 - If `LLM_MOCK=true` → backend returns deterministic mock LLM responses (for E2E tests)
 - The backend reads `.env` from the project root (mounted into the container or read via docker `--env-file`)
+- If the Massive key is invalid, rate-limited, or a poll otherwise fails, the backend does **not** fall back to the simulator — it logs the error and retries on the next poll interval. The price cache simply goes stale for affected tickers until a poll succeeds. There is no separate "degraded" state in the connection-status indicator for this; the SSE connection to the browser stays up throughout, it just carries stale prices.
 
 ---
 
@@ -153,7 +154,7 @@ Both the simulator and the Massive client implement the same abstract interface.
 - Updates at ~500ms intervals
 - Correlated moves across tickers (e.g., tech stocks move together)
 - Occasional random "events" — sudden 2-5% moves on a ticker for drama
-- Starts from realistic seed prices (e.g., AAPL ~$190, GOOGL ~$175, etc.)
+- Starts from realistic seed prices (e.g., AAPL ~$190, GOOGL ~$175, etc.) for a known set of tickers; a ticker outside that set gets a random seed price ($50-$300) and default drift/volatility parameters, so **any** ticker symbol can be added to the watchlist and will simulate a plausible price path
 - Runs as an in-process background task — no external dependencies
 
 ### Massive API (Optional)
@@ -175,7 +176,7 @@ Both the simulator and the Massive client implement the same abstract interface.
 
 - Endpoint: `GET /api/stream/prices`
 - Long-lived SSE connection; client uses native `EventSource` API
-- Server pushes price updates for all tickers known to the system at a regular cadence (~500ms) — in the single-user model this is equivalent to the user's watchlist
+- The market data source (simulator or Massive) tracks exactly the current watchlist — seeded with the watchlist at startup, then kept in sync via `add_ticker`/`remove_ticker` as the watchlist changes. The SSE stream pushes updates for that same tracked set at a regular cadence (~500ms). There is no separate, larger "known universe" of tickers beyond the watchlist.
 - Each SSE event contains ticker, price, previous price, timestamp, and change direction
 - Client handles reconnection automatically (EventSource has built-in retry)
 
@@ -185,11 +186,12 @@ Both the simulator and the Massive client implement the same abstract interface.
 
 ### SQLite with Lazy Initialization
 
-The backend checks for the SQLite database on startup (or first request). If the file doesn't exist or tables are missing, it creates the schema and seeds default data. This means:
+The backend checks for the SQLite database during FastAPI startup, before the market-data background task or the portfolio-snapshot task are started. If the file doesn't exist or tables are missing, it creates the schema and seeds default data. This means:
 
 - No separate migration step
 - No manual database setup
 - Fresh Docker volumes start with a clean, seeded database automatically
+- Both background tasks can assume the schema and seed data already exist the moment they start, since startup is strictly sequential: schema init → seed → start background tasks → accept requests
 
 ### Schema
 
@@ -225,7 +227,7 @@ All tables include a `user_id` column defaulting to `"default"`. This is hardcod
 - `price` REAL
 - `executed_at` TEXT (ISO timestamp)
 
-**portfolio_snapshots** — Portfolio value over time (for P&L chart). Recorded every 30 seconds by a background task, and immediately after each trade execution.
+**portfolio_snapshots** — Portfolio value over time (for P&L chart). Recorded every 30 seconds by a background task, immediately after each trade execution, and once at app startup so the P&L chart has a starting point instead of sitting empty for the first 30 seconds of a session.
 - `id` TEXT PRIMARY KEY (UUID)
 - `user_id` TEXT (default: `"default"`)
 - `total_value` REAL
@@ -277,6 +279,18 @@ All tables include a `user_id` column defaulting to `"default"`. This is hardcod
 |--------|------|-------------|
 | GET | `/api/health` | Health check (for Docker/deployment) |
 
+### Errors
+
+All endpoints return errors as `{"detail": "human-readable message"}` with a standard status code:
+
+| Status | Used for |
+|--------|----------|
+| 400 | Invalid trade (insufficient cash on buy, insufficient shares on sell, non-positive quantity) |
+| 404 | Unknown ticker on `DELETE /api/watchlist/{ticker}` (not currently watched), unknown ticker in a trade request |
+| 409 | Duplicate ticker on `POST /api/watchlist` (already on the watchlist) |
+
+`POST /api/watchlist` does not validate the ticker symbol against any known-ticker list — any non-empty string is accepted. The simulator will fabricate a plausible price path for an unrecognized symbol (see §6); Massive will simply return no data for it, so it shows as blank/no-data in the UI until (if ever) a poll returns a match.
+
 ---
 
 ## 9. LLM Integration
@@ -290,13 +304,15 @@ There is an OPENROUTER_API_KEY in the .env file in the project root.
 When the user sends a chat message, the backend:
 
 1. Loads the user's current portfolio context (cash, positions with P&L, watchlist with live prices, total portfolio value)
-2. Loads recent conversation history from the `chat_messages` table
+2. Loads recent conversation history from the `chat_messages` table — capped to the last 20 messages (10 user/assistant turns) to bound prompt size, since the table itself is an unbounded append-only log
 3. Constructs a prompt with a system message, portfolio context, conversation history, and the user's new message
 4. Calls the LLM via LiteLLM → OpenRouter, requesting structured output, using the cerebras-inference skill
 5. Parses the complete structured JSON response
 6. Auto-executes any trades or watchlist changes specified in the response
 7. Stores the message and executed actions in `chat_messages`
-8. Returns the complete JSON response to the frontend (no token-by-token streaming — Cerebras inference is fast enough that a loading indicator is sufficient)
+8. Returns the complete JSON response to the frontend
+
+**No streaming.** The response is returned as a single, complete JSON payload — not streamed token-by-token. Structured output already requires the full response before it can be parsed as JSON, so streaming tokens would add parsing complexity (partial-JSON handling) for no benefit. Cerebras inference is fast enough (1-3 seconds) that a loading indicator is sufficient UX.
 
 ### Structured Output Schema
 
@@ -326,6 +342,8 @@ Trades specified by the LLM execute automatically — no confirmation dialog. Th
 - It demonstrates agentic AI capabilities — the core theme of the course
 
 If a trade fails validation (e.g., insufficient cash), the error is included in the chat response so the LLM can inform the user.
+
+When `trades` contains multiple orders, they execute sequentially in array order — not all-or-nothing. Each trade is validated against the account state *after* prior trades in the same response have applied, so a later trade can fail even if earlier ones succeeded (e.g., cash spent on trade 1 is unavailable for trade 2). The response reports per-trade success/failure so the frontend can show a mix of confirmations and errors for a single message.
 
 ### System Prompt Guidance
 
@@ -430,7 +448,7 @@ The container is designed to deploy to AWS App Runner, Render, or any container 
 **Backend (pytest)**:
 - Market data: simulator generates valid prices, GBM math is correct, Massive API response parsing works, both implementations conform to the abstract interface
 - Portfolio: trade execution logic, P&L calculations, edge cases (selling more than owned, buying with insufficient cash, selling at a loss)
-- LLM: structured output parsing handles all valid schemas, graceful handling of malformed responses, trade validation within chat flow
+- LLM: structured output parsing handles all valid schemas, graceful handling of malformed responses, trade validation within chat flow — reuse the same `LLM_MOCK=true` fixtures/schema used by the E2E tests rather than a second set, so backend unit tests and E2E tests can't drift apart on what a "valid mock response" looks like
 - API routes: correct status codes, response shapes, error handling
 
 **Frontend (React Testing Library or similar)**:
