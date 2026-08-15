@@ -12,7 +12,13 @@ uv sync --extra dev   # Install all dependencies including test/lint tools
 The market data subsystem lives in `app/market/`. Use these imports:
 
 ```python
-from app.market import PriceCache, PriceUpdate, MarketDataSource, create_market_data_source
+from app.market import (
+    PriceCache,
+    PriceUpdate,
+    MarketDataSource,
+    normalize_ticker,
+    create_market_data_source,
+)
 ```
 
 ### Core Types
@@ -28,6 +34,8 @@ from app.market import PriceCache, PriceUpdate, MarketDataSource, create_market_
   - `version` property — monotonic counter, increments on every update (for SSE change detection)
 
 - **`MarketDataSource`** — Abstract interface implemented by `SimulatorDataSource` and `MassiveDataSource`. Lifecycle: `start(tickers)` -> `add_ticker()` / `remove_ticker()` -> `stop()`.
+
+- **`normalize_ticker(ticker)`** — Canonical symbol form: stripped and uppercased, `""` for blank input. Both data sources apply it, so cache keys are always canonical. Use it in the watchlist/trade endpoints too, so user input matches cache keys.
 
 - **`create_market_data_source(cache)`** — Factory. Returns `MassiveDataSource` if `MASSIVE_API_KEY` is set, otherwise `SimulatorDataSource`.
 

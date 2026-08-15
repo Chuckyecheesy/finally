@@ -1,5 +1,7 @@
 """Tests for PriceUpdate dataclass."""
 
+import json
+
 import pytest
 
 from app.market.models import PriceUpdate
@@ -68,6 +70,14 @@ class TestPriceUpdate:
         assert result["change"] == 0.50
         assert result["change_percent"] == 0.2632  # (0.50 / 190.00) * 100
         assert result["direction"] == "up"
+
+    def test_to_dict_is_json_serializable(self):
+        """The SSE stream json.dumps() this directly — no exotic types allowed."""
+        update = PriceUpdate(ticker="AAPL", price=190.50, previous_price=190.00, timestamp=1234567890.0)
+
+        restored = json.loads(json.dumps(update.to_dict()))
+
+        assert restored == update.to_dict()
 
     def test_immutability(self):
         """Test that PriceUpdate is immutable."""

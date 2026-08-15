@@ -10,7 +10,7 @@ import random
 import numpy as np
 
 from .cache import PriceCache
-from .interface import MarketDataSource
+from .interface import MarketDataSource, normalize_ticker
 from .seed_prices import (
     CORRELATION_GROUPS,
     CROSS_GROUP_CORR,
@@ -217,17 +217,18 @@ class SimulatorDataSource(MarketDataSource):
         self._task: asyncio.Task | None = None
 
     async def start(self, tickers: list[str]) -> None:
+        normalized = [t for t in (normalize_ticker(t) for t in tickers) if t]
         self._sim = GBMSimulator(
-            tickers=tickers,
+            tickers=normalized,
             event_probability=self._event_prob,
         )
         # Seed the cache with initial prices so SSE has data immediately
-        for ticker in tickers:
+        for ticker in normalized:
             price = self._sim.get_price(ticker)
             if price is not None:
                 self._cache.update(ticker=ticker, price=price)
         self._task = asyncio.create_task(self._run_loop(), name="simulator-loop")
-        logger.info("Simulator started with %d tickers", len(tickers))
+        logger.info("Simulator started with %d tickers", len(normalized))
 
     async def stop(self) -> None:
         if self._task and not self._task.done():
@@ -240,7 +241,8 @@ class SimulatorDataSource(MarketDataSource):
         logger.info("Simulator stopped")
 
     async def add_ticker(self, ticker: str) -> None:
-        if self._sim:
+        ticker = normalize_ticker(ticker)
+        if ticker and self._sim:
             self._sim.add_ticker(ticker)
             # Seed cache immediately so the ticker has a price right away
             price = self._sim.get_price(ticker)
@@ -249,6 +251,7 @@ class SimulatorDataSource(MarketDataSource):
             logger.info("Simulator: added ticker %s", ticker)
 
     async def remove_ticker(self, ticker: str) -> None:
+        ticker = normalize_ticker(ticker)
         if self._sim:
             self._sim.remove_ticker(ticker)
         self._cache.remove(ticker)
