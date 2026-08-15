@@ -126,6 +126,22 @@ class TestGBMSimulator:
         result = sim.step()
         price_str = str(result["AAPL"])
         # Check that we have at most 2 decimal places
-        if '.' in price_str:
-            decimal_part = price_str.split('.')[1]
+        if "." in price_str:
+            decimal_part = price_str.split(".")[1]
             assert len(decimal_part) <= 2
+
+    def test_full_default_ticker_set_cholesky_is_well_behaved(self):
+        """The full 10x10 default correlation matrix must decompose cleanly.
+
+        A non-positive-semi-definite correlation matrix raises LinAlgError on
+        np.linalg.cholesky; this exercises the full default ticker set (only
+        ever manually verified before, per MARKET_DATA_REVIEW.md 3.1) so a
+        future change to CORRELATION_GROUPS or the correlation constants
+        can't silently break it without CI catching it.
+        """
+        sim = GBMSimulator(tickers=list(SEED_PRICES.keys()))
+        assert sim._cholesky is not None
+        for _ in range(100):
+            prices = sim.step()
+            assert set(prices.keys()) == set(SEED_PRICES.keys())
+            assert all(p > 0 for p in prices.values())
