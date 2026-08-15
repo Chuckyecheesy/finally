@@ -79,11 +79,11 @@ Notes:
 - `lastTrade.p` is the field to use as "current price."
 - The official Python client's `LastTrade` model (`massive.rest.models.trades.LastTrade`)
   maps JSON field `t` to an attribute called **`sip_timestamp`**, not
-  `timestamp` — there is no `.timestamp` attribute on this model. See the
-  "Known Issue" callout in `MARKET_INTERFACE.md`: FinAlly's current
-  `massive_client.py` reads `snap.last_trade.timestamp`, which raises
-  `AttributeError` on every real snapshot and is silently caught, so live
-  Massive polling currently never updates the price cache.
+  `timestamp` — there is no `.timestamp` attribute on this model. FinAlly's
+  `massive_client.py` previously read `snap.last_trade.timestamp`, which
+  raised `AttributeError` on every real snapshot and was silently caught, so
+  live Massive polling never updated the price cache. This is fixed — see the
+  "Resolved: Massive Timestamp Field" section of `MARKET_INTERFACE.md`.
 - A ticker with no trades yet today (e.g., pre-market, or an obscure symbol)
   may be missing `lastTrade` or `day` entirely — code must not assume these
   keys are always present.
@@ -140,7 +140,8 @@ snapshots = client.get_snapshot_all(
     tickers=["AAPL", "GOOGL", "MSFT"],
 )
 for snap in snapshots:
-    print(snap.ticker, snap.last_trade.price, snap.last_trade.timestamp)
+    # NB: `sip_timestamp`, not `timestamp` — and it's Unix nanoseconds
+    print(snap.ticker, snap.last_trade.price, snap.last_trade.sip_timestamp / 1e9)
 ```
 
 ```python

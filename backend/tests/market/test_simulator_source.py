@@ -124,6 +124,77 @@ class TestSimulatorDataSource:
 
         await source.stop()
 
+    async def test_add_ticker_is_normalized(self):
+        """Tickers are uppercased/stripped so cache keys match the Massive source."""
+        cache = PriceCache()
+        source = SimulatorDataSource(price_cache=cache, update_interval=0.1)
+        await source.start(["AAPL"])
+
+        await source.add_ticker("  tsla  ")
+        assert source.get_tickers() == ["AAPL", "TSLA"]
+        assert cache.get("TSLA") is not None
+        assert cache.get("tsla") is None
+
+        await source.stop()
+
+    async def test_start_normalizes_tickers(self):
+        """A lowercase seed list still produces canonical cache keys."""
+        cache = PriceCache()
+        source = SimulatorDataSource(price_cache=cache, update_interval=0.1)
+        await source.start([" aapl ", "googl"])
+
+        assert set(source.get_tickers()) == {"AAPL", "GOOGL"}
+        assert cache.get("AAPL") is not None
+
+        await source.stop()
+
+    async def test_start_skips_blank_tickers(self):
+        cache = PriceCache()
+        source = SimulatorDataSource(price_cache=cache, update_interval=0.1)
+        await source.start(["AAPL", "   ", ""])
+
+        assert source.get_tickers() == ["AAPL"]
+
+        await source.stop()
+
+    async def test_remove_ticker_is_normalized(self):
+        """Removing with different casing still finds the tracked ticker."""
+        cache = PriceCache()
+        source = SimulatorDataSource(price_cache=cache, update_interval=0.1)
+        await source.start(["AAPL", "TSLA"])
+
+        await source.remove_ticker("tsla")
+        assert source.get_tickers() == ["AAPL"]
+        assert cache.get("TSLA") is None
+
+        await source.stop()
+
+    async def test_add_blank_ticker_is_ignored(self):
+        cache = PriceCache()
+        source = SimulatorDataSource(price_cache=cache, update_interval=0.1)
+        await source.start(["AAPL"])
+
+        await source.add_ticker("   ")
+        assert source.get_tickers() == ["AAPL"]
+
+        await source.stop()
+
+    async def test_unknown_ticker_gets_simulated_price(self):
+        """PLAN.md §6: any symbol can be watched; the simulator fabricates a path."""
+        cache = PriceCache()
+        source = SimulatorDataSource(price_cache=cache, update_interval=0.01)
+        await source.start(["AAPL"])
+
+        await source.add_ticker("ZZZZ")
+        price = cache.get_price("ZZZZ")
+        assert price is not None
+        assert 50.0 <= price <= 300.0
+
+        await asyncio.sleep(0.05)
+        assert cache.get_price("ZZZZ") is not None  # Keeps ticking
+
+        await source.stop()
+
     async def test_custom_event_probability(self):
         """Test creating source with custom event probability."""
         cache = PriceCache()

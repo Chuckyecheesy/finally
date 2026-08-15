@@ -640,18 +640,23 @@ class MassiveDataSource(MarketDataSource):
         try:
             # RESTClient is synchronous — run in a thread to avoid blocking the event loop
             snapshots = await asyncio.to_thread(self._fetch_snapshots)
-            processed = 0
-            for snap in snapshots:
-                try:
-                    price = snap.last_trade.price
-                    timestamp = snap.last_trade.timestamp / 1000.0   # see §14 — this is wrong
-                    self._cache.update(ticker=snap.ticker, price=price, timestamp=timestamp)
-                    processed += 1
-                except (AttributeError, TypeError) as e:
-                    logger.warning("Skipping snapshot for %s: %s", getattr(snap, "ticker", "???"), e)
         except Exception as e:
             logger.error("Massive poll failed: %s", e)
             # Deliberately not re-raised — the loop retries next interval
+            return
+
+        processed = 0
+        for snap in snapshots or []:
+            ticker = normalize_ticker(getattr(snap, "ticker", "") or "")
+            if not ticker:
+                continue
+            price = _extract_price(snap)          # last trade → day close → prev close
+            if price is None:
+                logger.warning("Skipping snapshot for %s: no usable price", ticker)
+                continue
+            # sip_timestamp is Unix nanoseconds; None → cache stamps wall-clock time
+            self._cache.update(ticker=ticker, price=price, timestamp=_extract_timestamp(snap))
+            processed += 1
 
     def _fetch_snapshots(self) -> list:
         return self._client.get_snapshot_all(
@@ -1081,9 +1086,12 @@ async def test_sse_stream_emits_seeded_prices(async_client, price_cache):
 
 ## 14. Known Issues
 
-### 14.1 Massive timestamp field — cache never populates with a real key (open)
+All three issues previously recorded here have been **resolved**. They are
+kept below with their fixes for the record.
 
-`MassiveDataSource._poll_once` (§8.1) does:
+### 14.1 Massive timestamp field — cache never populated with a real key (RESOLVED)
+
+`MassiveDataSource._poll_once` (§8.1) used to do:
 
 ```python
 timestamp = snap.last_trade.timestamp / 1000.0
@@ -1091,24 +1099,34 @@ timestamp = snap.last_trade.timestamp / 1000.0
 
 The installed `massive` client's `LastTrade` model has **no `.timestamp`
 attribute** — the JSON field `t` (Unix **nanoseconds**) is exposed as
-`.sip_timestamp`. Accessing `.timestamp` raises `AttributeError`, which is
+`.sip_timestamp`. Accessing `.timestamp` raised `AttributeError`, which was
 caught by the per-snapshot `except (AttributeError, TypeError)` in
 `_poll_once` and logged as a warning (`"Skipping snapshot for %s: %s"`). The
-practical effect: **with a real `MASSIVE_API_KEY` set, every poll currently
-skips every ticker, and the price cache is never populated.** The simulator
-path is entirely unaffected.
+practical effect: **with a real `MASSIVE_API_KEY` set, every poll skipped
+every ticker, and the price cache was never populated.** The simulator path
+was entirely unaffected.
 
-**Fix (two-part, both required):**
+**Fixed** by extracting price and timestamp through dedicated helpers
+(`_extract_price` / `_extract_timestamp`) that read `sip_timestamp` and
+divide by `1e9`. Two things made this bug survive the original test suite,
+and both were addressed:
 
-```python
-timestamp = snap.last_trade.sip_timestamp / 1e9   # nanoseconds, not milliseconds
-```
+- The tests built snapshots out of bare `MagicMock`, which fabricates any
+  attribute asked of it — so `mock.last_trade.timestamp` answered happily
+  while the real model would not. `test_massive.py` now uses plain fake
+  classes mirroring the real models, so a wrong attribute name fails loudly.
+- The per-snapshot `except (AttributeError, TypeError)` turned a hard coding
+  error into a routine warning. Extraction is now explicit `getattr`-based
+  with validation, so "no usable price" is a real data condition rather than
+  a swallowed typo.
 
-This is recorded in `MARKET_INTERFACE.md` and `MASSIVE_API.md` as well; it's
-implementation work, not a design change, but it blocks any real end-to-end
-test of `MASSIVE_API_KEY` mode until fixed.
+The fix also made the poller more tolerant of the sparse-snapshot cases
+`MASSIVE_API.md` warns about: a snapshot with no `lastTrade` (pre-market, or
+a symbol that hasn't traded yet today) now falls back to `day.close` and then
+`prev_day.close`, and a missing timestamp no longer discards an otherwise
+good price — `PriceCache` stamps it with wall-clock time instead.
 
-### 14.2 `PriceCache.version` read outside the lock (low severity, accepted)
+### 14.2 `PriceCache.version` read outside the lock (RESOLVED)
 
 ```python
 @property
@@ -1116,21 +1134,31 @@ def version(self) -> int:
     return self._version
 ```
 
-Reads `self._version` without acquiring `self._lock`. On CPython (GIL), a
-single `int` read is atomic, so this is safe today. It would become a
-genuine race only on a no-GIL Python build (PEP 703, 3.13t+), which this
-project doesn't target. Documented here rather than fixed because fixing it
-adds lock contention to the SSE hot path (`version` is read every 500ms per
-connected client) for a risk that doesn't apply to the deployment target.
+Read `self._version` without acquiring `self._lock`. On CPython (GIL), a
+single `int` read is atomic, so this was safe on the deployment target, and
+was originally accepted on the grounds that locking adds contention to the
+SSE hot path.
 
-### 14.3 Module-level `router` in `stream.py` (low severity, latent footgun)
+**Fixed** — the property now takes the lock. The contention argument didn't
+hold up: `version` is read twice per second per connected client, and an
+uncontended `Lock` acquisition is on the order of tens of nanoseconds, so the
+cost is unmeasurable next to the JSON serialization happening on the same
+path. Taking the lock makes `PriceCache` uniformly thread-safe rather than
+thread-safe-by-CPython-implementation-detail, including on free-threaded
+builds (PEP 703).
 
-`stream.py` creates one module-level `router` and `create_stream_router()`
-registers `/prices` on it via closure. Calling `create_stream_router` twice
-(e.g., from two tests in the same process) would register the route twice.
-Not a problem in production — `main.py` calls it exactly once at startup —
-but worth knowing if writing the SSE integration test from §13.6: instantiate
-the router once per test session, not once per test function.
+### 14.3 Module-level `router` in `stream.py` (RESOLVED)
+
+`stream.py` created one module-level `router` and `create_stream_router()`
+registered `/prices` on it via closure. Calling `create_stream_router` twice
+registered the route twice, and — worse than the duplicate — every
+registered route closed over whichever `PriceCache` was passed last, since
+they all shared the one router object.
+
+**Fixed** — the `APIRouter` is constructed inside `create_stream_router()`,
+so each call returns an independent router bound to its own cache. This is
+what makes the SSE tests in §13.6 safe to write per-test-function rather than
+per-session.
 
 ---
 

@@ -158,9 +158,9 @@ cache with an initial value *before* returning, so that whatever endpoint or
 task reads the cache next (e.g., the first SSE frame) never sees an empty
 result for a ticker that's supposedly being tracked.
 
-## Known Issue: Massive Timestamp Field
+## Resolved: Massive Timestamp Field
 
-`MassiveDataSource._poll_once()` (in `massive_client.py`) currently does:
+`MassiveDataSource._poll_once()` (in `massive_client.py`) used to do:
 
 ```python
 timestamp = snap.last_trade.timestamp / 1000.0
@@ -169,16 +169,33 @@ timestamp = snap.last_trade.timestamp / 1000.0
 The installed `massive` client's `LastTrade` model
 (`massive.rest.models.trades.LastTrade`) has no `.timestamp` attribute — the
 JSON field `t` (a Unix-nanosecond trade timestamp) is exposed as
-**`.sip_timestamp`**. Accessing `.timestamp` raises `AttributeError`, which
-`_poll_once()` catches per-snapshot and logs as a warning
+**`.sip_timestamp`**. Accessing `.timestamp` raised `AttributeError`, which
+`_poll_once()` caught per-snapshot and logged as a warning
 (`"Skipping snapshot for %s: %s"`) — so with a real `MASSIVE_API_KEY` set,
-every poll currently logs a skip for every ticker and the price cache is
-never populated. See `MASSIVE_API.md` for the field reference. The fix is
-two-part: read `snap.last_trade.sip_timestamp`, and divide by `1e9` (not
-`1000.0`) since the units are nanoseconds, not milliseconds.
+every poll logged a skip for every ticker and the price cache was never
+populated. See `MASSIVE_API.md` for the field reference.
 
-This document records the issue as the interface's contract reference;
-fixing it is implementation work outside the scope of these planning docs.
+**This is now fixed.** Price and timestamp extraction moved into two module
+-level helpers in `massive_client.py`:
+
+```python
+_extract_price(snap)      -> float | None   # last_trade.price → day.close → prev_day.close
+_extract_timestamp(snap)  -> float | None   # last_trade.sip_timestamp / 1e9 (Unix ns → s)
+```
+
+Three behavioral consequences worth knowing downstream:
+
+- A snapshot with no `lastTrade` — pre-market, or a symbol that hasn't traded
+  yet today — now yields a price from today's or the previous day's close
+  instead of being skipped entirely.
+- A snapshot with a price but no usable timestamp is still cached;
+  `PriceCache` stamps it with wall-clock time. A good price is never
+  discarded over a missing timestamp.
+- Only a snapshot with no usable price anywhere is skipped, which leaves that
+  ticker stale — consistent with the fail-stale rule above.
+
+`_extract_timestamp` checks `participant_timestamp` and `trf_timestamp` after
+`sip_timestamp`, since not every venue populates the SIP field.
 
 ## Extension Points
 

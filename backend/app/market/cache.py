@@ -27,7 +27,10 @@ class PriceCache:
         If this is the first update for the ticker, previous_price == price (direction='flat').
         """
         with self._lock:
-            ts = timestamp or time.time()
+            # `is None`, not falsiness — a producer may legitimately pass a
+            # timestamp that rounds to 0.0, and callers rely on an explicit
+            # value being preserved verbatim.
+            ts = time.time() if timestamp is None else timestamp
             prev = self._prices.get(ticker)
             previous_price = prev.price if prev else price
 
@@ -64,7 +67,8 @@ class PriceCache:
     @property
     def version(self) -> int:
         """Current version counter. Useful for SSE change detection."""
-        return self._version
+        with self._lock:
+            return self._version
 
     def __len__(self) -> int:
         with self._lock:

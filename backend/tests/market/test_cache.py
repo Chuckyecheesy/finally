@@ -1,5 +1,8 @@
 """Tests for PriceCache."""
 
+import threading
+import time
+
 from app.market.cache import PriceCache
 
 
@@ -101,3 +104,59 @@ class TestPriceCache:
         cache = PriceCache()
         update = cache.update("AAPL", 190.12345)
         assert update.price == 190.12
+
+    def test_zero_timestamp_is_preserved(self):
+        """0.0 is falsy but still an explicit timestamp — it must not be replaced."""
+        cache = PriceCache()
+        update = cache.update("AAPL", 190.50, timestamp=0.0)
+        assert update.timestamp == 0.0
+
+    def test_omitted_timestamp_uses_wall_clock(self):
+        cache = PriceCache()
+        before = time.time()
+        update = cache.update("AAPL", 190.50)
+        assert before <= update.timestamp <= time.time()
+
+    def test_remove_then_update_is_flat_again(self):
+        """A re-added ticker starts fresh, with no direction carried over."""
+        cache = PriceCache()
+        cache.update("AAPL", 190.00)
+        cache.update("AAPL", 195.00)
+        cache.remove("AAPL")
+
+        update = cache.update("AAPL", 100.00)
+        assert update.direction == "flat"
+        assert update.previous_price == 100.00
+
+    def test_remove_bumps_nothing_but_clears_ticker(self):
+        cache = PriceCache()
+        cache.update("AAPL", 190.00)
+        cache.update("GOOGL", 175.00)
+        cache.remove("AAPL")
+
+        assert cache.get_all().keys() == {"GOOGL"}
+
+    def test_get_all_is_a_copy(self):
+        """Callers mutating the snapshot must not corrupt the cache."""
+        cache = PriceCache()
+        cache.update("AAPL", 190.00)
+
+        snapshot = cache.get_all()
+        snapshot.clear()
+
+        assert cache.get("AAPL") is not None
+
+    def test_concurrent_updates_are_all_counted(self):
+        """Writes may arrive off the event loop thread (Massive uses to_thread)."""
+        cache = PriceCache()
+        threads = [
+            threading.Thread(target=lambda i=i: [cache.update(f"T{i}", 10.0 + j) for j in range(50)])
+            for i in range(8)
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert len(cache) == 8
+        assert cache.version == 8 * 50

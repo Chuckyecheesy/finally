@@ -5,6 +5,17 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 
+def normalize_ticker(ticker: str) -> str:
+    """Canonical form of a ticker symbol: stripped and uppercased.
+
+    Every implementation normalizes on the way in so that cache keys are
+    source-agnostic — downstream code (watchlist, portfolio, SSE) always sees
+    "AAPL" whether the user typed "aapl" or " AAPL ". Returns "" for input
+    that normalizes to nothing; callers treat that as a no-op.
+    """
+    return ticker.strip().upper()
+
+
 class MarketDataSource(ABC):
     """Contract for market data providers.
 
