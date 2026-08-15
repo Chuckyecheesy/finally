@@ -90,6 +90,20 @@ in `MARKET_DATA_DESIGN.md` §14, plus two consistency gaps:
     any attribute asked of it, which is exactly what hid issue 8. Tests now use
     plain fake classes mirroring the real `massive` models.
 
+An independent re-review (`planning/MARKET_DATA_REVIEW.md`, 2026-08-15) confirmed
+all of the above and found no new High/Medium issues, closing out its two
+low-priority follow-ups:
+
+13. **Full 10-ticker correlation matrix now covered by a test** —
+    `test_simulator.py::test_full_default_ticker_set_cholesky_is_well_behaved`
+    builds a `GBMSimulator` with the entire default ticker set and steps it
+    100 times, asserting the Cholesky decomposition succeeds and all prices
+    stay positive. Previously this was only verified manually, not in CI.
+14. **`ruff format` drift fixed** — the 4 test files it flagged
+    (`test_cache.py`, `test_models.py`, `test_simulator.py`,
+    `test_simulator_source.py`) are now reformatted; `ruff format --check`
+    is clean across the module.
+
 ## Demo
 
 A Rich terminal demo is available at `backend/market_data_demo.py`:

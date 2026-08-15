@@ -150,7 +150,9 @@ class TestPriceCache:
         """Writes may arrive off the event loop thread (Massive uses to_thread)."""
         cache = PriceCache()
         threads = [
-            threading.Thread(target=lambda i=i: [cache.update(f"T{i}", 10.0 + j) for j in range(50)])
+            threading.Thread(
+                target=lambda i=i: [cache.update(f"T{i}", 10.0 + j) for j in range(50)]
+            )
             for i in range(8)
         ]
         for t in threads:
