@@ -41,7 +41,11 @@ Plans:
   2. A new realistically-mocked integration test exercises a full Massive API poll cycle feeding both the SSE price stream and portfolio valuation in one flow (beyond `massive_client.py`'s existing unit-level parsing tests)
   3. `Heatmap.tsx`, `PnlChart.tsx`, `PriceChart.tsx`, `Sparkline.tsx`, `TradeBar.tsx`, and `Panel.tsx` each have a passing colocated `*.test.tsx` file
   4. Full backend (`uv run pytest`) and frontend (`npm test`) suites pass with the new tests included
-**Plans**: TBD
+**Plans**: 4 plans
+- [ ] 02-01-PLAN.md — Backend: 50+ ticker GBM/Cholesky correlation stability test (TEST-02)
+- [ ] 02-02-PLAN.md — Backend: Massive poll -> SSE stream + portfolio valuation integration test (TEST-03)
+- [ ] 02-03-PLAN.md — Frontend: Panel, Sparkline, TradeBar component tests (TEST-04)
+- [ ] 02-04-PLAN.md — Frontend: Heatmap, PnlChart, PriceChart component tests (TEST-04)
 
 ### Phase 3: Performance Hardening
 **Goal**: The three perf nits flagged in the audit — an unthrottled background-tab poll, near-duplicate portfolio snapshots during active trading, and an unbounded P&L history response — are fixed.
