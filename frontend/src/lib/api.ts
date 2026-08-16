@@ -7,6 +7,11 @@ import type {
   WatchlistItem,
 } from "./types";
 
+// Matches backend/app/api/portfolio.py's DEFAULT_HISTORY_LIMIT — a long-running
+// session accumulates snapshots every 30s indefinitely, so the default request must
+// stay bounded instead of pulling the full unbounded history on every poll.
+const DEFAULT_HISTORY_LIMIT = 500;
+
 export class ApiError extends Error {
   readonly status: number;
 
@@ -78,8 +83,8 @@ export async function fetchPortfolio(): Promise<Portfolio> {
   };
 }
 
-export async function fetchHistory(): Promise<Snapshot[]> {
-  const raw = await request<unknown>("/api/portfolio/history");
+export async function fetchHistory(limit: number = DEFAULT_HISTORY_LIMIT): Promise<Snapshot[]> {
+  const raw = await request<unknown>(`/api/portfolio/history?limit=${limit}`);
   const rows = Array.isArray(raw)
     ? raw
     : Array.isArray((raw as Record<string, unknown>)?.snapshots)
