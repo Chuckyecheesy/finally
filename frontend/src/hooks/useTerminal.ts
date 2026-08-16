@@ -46,10 +46,39 @@ export function useTerminal(prices: Record<string, PriceUpdate>) {
     if (historyResult.status === "fulfilled") setHistory(historyResult.value);
   }, []);
 
+  // PERF-01: gate the 15s REST reconciliation poll on tab visibility so a
+  // backgrounded tab doesn't keep hitting /api/portfolio, /api/watchlist,
+  // and /api/portfolio/history every 15s for no visible benefit.
   useEffect(() => {
-    void refresh();
-    const timer = setInterval(() => void refresh(), 15_000);
-    return () => clearInterval(timer);
+    let timer: ReturnType<typeof setInterval> | null = null;
+
+    const start = () => {
+      if (timer !== null) return;
+      void refresh();
+      timer = setInterval(() => void refresh(), 15_000);
+    };
+
+    const stop = () => {
+      if (timer === null) return;
+      clearInterval(timer);
+      timer = null;
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        stop();
+      } else {
+        start();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibility);
+    if (document.visibilityState !== "hidden") start();
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      stop();
+    };
   }, [refresh]);
 
   const run = useCallback(
