@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import inspect
 import logging
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -146,21 +145,23 @@ class _DeferredMarketSource(MarketDataSource):
 
 
 def _include_chat_router(app: FastAPI, price_cache: PriceCache) -> None:
-    """Mount POST /api/chat if the LLM subsystem is present.
+    """Mount POST /api/chat — mandatory, not best-effort.
 
-    It is built in parallel with this module; without it the rest of the API
-    still runs, which keeps dev and tests unblocked. Arguments are matched
-    against the factory's actual signature so the two can land independently.
+    The LLM module now ships with the app, so a failure to import
+    `app.llm.router` is a startup error, not a degraded boot: a silently
+    unmounted chat endpoint would only ever surface as 404s at request time.
+    The market source must be reached through `_DeferredMarketSource`, not
+    captured directly, since routers are built before the lifespan starts it.
     """
     try:
         from app.llm.router import create_chat_router
-    except ImportError:
-        logger.warning("app.llm.router unavailable — /api/chat is not mounted")
-        return
+    except ImportError as exc:
+        logger.error("app.llm.router could not be imported — /api/chat cannot be mounted")
+        raise RuntimeError(
+            "app.llm.router could not be imported — /api/chat cannot be mounted"
+        ) from exc
 
-    available = {"price_cache": price_cache, "market_source": _DeferredMarketSource(app)}
-    parameters = inspect.signature(create_chat_router).parameters
-    app.include_router(create_chat_router(**{k: v for k, v in available.items() if k in parameters}))
+    app.include_router(create_chat_router(price_cache=price_cache, market_source=_DeferredMarketSource(app)))
 
 
 app = create_app()
