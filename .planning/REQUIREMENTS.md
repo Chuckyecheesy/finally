@@ -10,7 +10,7 @@ All requirements below are hardening fixes to the already-shipped v1 application
 ### Fragile Areas
 
 - [ ] **FRAG-01**: `_include_chat_router` (`backend/app/main.py`) fails hard at startup if `app.llm.router` can't be imported, instead of silently logging a warning and booting without `/api/chat`
-- [ ] **FRAG-02**: Portfolio API's `PositionOut` carries a `stale: bool` flag so the frontend can distinguish "priced at avg_cost because the price cache has no data" from a genuine break-even position
+- [x] **FRAG-02**: Portfolio API's `PositionOut` carries a `stale: bool` flag so the frontend can distinguish "priced at avg_cost because the price cache has no data" from a genuine break-even position
 
 ### Test Coverage
 
@@ -52,7 +52,7 @@ Populated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | FRAG-01 | Phase 1 | Pending |
-| FRAG-02 | Phase 1 | Pending |
+| FRAG-02 | Phase 1 | Complete |
 | TEST-01 | Phase 1 | Pending |
 | TEST-02 | Phase 2 | Pending |
 | TEST-03 | Phase 2 | Pending |
