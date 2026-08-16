@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop":[
+      {
+        "hooks": [
+          {
+            "type":"command",
+            "command":"codex --approve-for-me",
+            "description":"Run codex to review the changes since the last commit. Once this shell command is executed, you will type inside the prompt window the following: 'Review changes since the last commit and write your result to a file called planning/REVIEW.md'"
+          }
+        ]
+      }
+    ]
+  }
+}

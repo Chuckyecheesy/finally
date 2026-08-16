@@ -1,0 +1,71 @@
+# E2E harness: the real production image plus a Playwright runner.
+# Browser dependencies stay out of the app image (PLAN.md §12).
+#
+#   docker compose -f test/docker-compose.test.yml up --build --abort-on-container-exit
+#   docker compose -f test/docker-compose.test.yml down -v
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: finally-e2e
+    environment:
+      # Deterministic, network-free assistant responses.
+      LLM_MOCK: "true"
+      # No key -> built-in market simulator, so prices stream without an upstream.
+      MASSIVE_API_KEY: ""
+      OPENROUTER_API_KEY: "test-key-unused-under-llm-mock"
+    tmpfs:
+      # Every run starts from a freshly created, freshly seeded database.
+      # Deliberately NOT the host ./db directory.
+      - /app/db
+    # Published so the suite can also be driven from the host
+    # (`cd test && npx playwright test`) against the same container.
+    ports:
+      - "${E2E_APP_PORT:-8000}:8000"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          python -c "import urllib.request,sys;
+          sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/health',
+          timeout=2).status == 200 else 1)"
+      interval: 3s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  playwright:
+    # node:20-slim + a Chromium-only browser install, rather than the official
+    # mcr.microsoft.com/playwright image: same result at roughly a tenth of the
+    # disk, and this suite only ever runs the chromium project. Both the npm
+    # deps and the downloaded browser live in named volumes, so the install cost
+    # is paid once rather than on every run.
+    image: node:20-slim
+    depends_on:
+      app:
+        condition: service_healthy
+    # Shares the app's network namespace, so the suite reaches it on
+    # http://localhost:8000. Chrome force-upgrades http:// on a dotless host
+    # like "app" to https:// and fails with ERR_SSL_PROTOCOL_ERROR; localhost is
+    # exempt from that upgrade, which sidesteps the problem entirely.
+    network_mode: service:app
+    environment:
+      BASE_URL: http://localhost:8000
+      CI: "true"
+      PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+    working_dir: /e2e
+    volumes:
+      - .:/e2e
+      - e2e-node-modules:/e2e/node_modules
+      - e2e-browsers:/ms-playwright
+    command: >-
+      sh -c "npm ci --no-audit --no-fund
+      && npx playwright install --with-deps chromium
+      && npx playwright test"
+    ipc: host
+
+volumes:
+  e2e-node-modules:
+  e2e-browsers:
