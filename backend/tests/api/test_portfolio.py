@@ -160,3 +160,47 @@ def test_trade_response_portfolio_carries_stale(client):
     response = buy(client, "AAPL", 10)
     (position,) = response.json()["portfolio"]["positions"]
     assert "stale" in position
+
+
+def test_history_is_bounded_by_default_limit_with_no_query_params(client):
+    buy(client, "AAPL", 1)
+    buy(client, "MSFT", 1)
+    buy(client, "AAPL", 1)
+
+    response = client.get("/api/portfolio/history")
+    assert response.status_code == 200
+    history = response.json()
+    assert len(history) <= 500
+    for point in history:
+        assert "total_value" in point
+        assert "recorded_at" in point
+
+
+def test_history_explicit_limit_caps_row_count_oldest_first(client):
+    buy(client, "AAPL", 1)
+    buy(client, "MSFT", 1)
+    buy(client, "AAPL", 1)
+    buy(client, "MSFT", 1)
+
+    full_history = client.get("/api/portfolio/history").json()
+    assert len(full_history) == 4
+
+    limited = client.get("/api/portfolio/history?limit=2").json()
+    assert len(limited) == 2
+    assert limited == full_history[-2:]
+    assert [point["recorded_at"] for point in limited] == sorted(
+        point["recorded_at"] for point in limited
+    )
+
+
+def test_history_since_filters_inclusively(client):
+    buy(client, "AAPL", 1)
+    first_recorded_at = client.get("/api/portfolio/history").json()[0]["recorded_at"]
+
+    buy(client, "MSFT", 1)
+
+    since_first = client.get(f"/api/portfolio/history?since={first_recorded_at}").json()
+    assert len(since_first) == 2
+
+    since_after_both = client.get("/api/portfolio/history?since=9999-01-01T00:00:00+00:00").json()
+    assert since_after_both == []

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from app.db import (
     DEFAULT_USER_ID,
@@ -17,6 +17,11 @@ from app.market import PriceCache, normalize_ticker
 
 from .deps import get_price_cache
 from .schemas import PortfolioOut, PositionOut, SnapshotOut, TradeOut, TradeRequest, TradeResponse
+
+# CONCERNS.md: a long-running session accumulates snapshots every 30s indefinitely,
+# and GET /api/portfolio/history was returning every row on every poll (every 15s via
+# useTerminal's refresh). Bound the default response size instead of growing unbounded.
+DEFAULT_HISTORY_LIMIT = 500
 
 
 def build_portfolio(price_cache: PriceCache, user_id: str = DEFAULT_USER_ID) -> PortfolioOut:
@@ -109,11 +114,19 @@ def create_portfolio_router(user_id: str = DEFAULT_USER_ID) -> APIRouter:
         )
 
     @router.get("/history", response_model=list[SnapshotOut])
-    async def get_history() -> list[SnapshotOut]:
-        """Portfolio value over time, oldest first, for the P&L chart."""
+    async def get_history(
+        limit: int = Query(default=DEFAULT_HISTORY_LIMIT, ge=1, le=5000),
+        since: str | None = Query(default=None),
+    ) -> list[SnapshotOut]:
+        """Portfolio value over time, oldest first, for the P&L chart.
+
+        Bounded to `limit` rows (default DEFAULT_HISTORY_LIMIT, capped 1-5000) so the
+        response doesn't grow unboundedly over a long-running session (PLAN.md §7
+        records a snapshot every 30s plus one per trade).
+        """
         return [
             SnapshotOut(total_value=s.total_value, recorded_at=s.recorded_at)
-            for s in list_snapshots(user_id)
+            for s in list_snapshots(user_id, since=since, limit=limit)
         ]
 
     return router
