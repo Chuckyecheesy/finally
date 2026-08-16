@@ -21,9 +21,9 @@ All requirements below are hardening fixes to the already-shipped v1 application
 
 ### Performance
 
-- [ ] **PERF-01**: The frontend's 15s REST reconciliation poll (`useTerminal.ts`) is gated on `document.visibilityState` so a backgrounded tab stops polling
-- [ ] **PERF-02**: Trade-triggered portfolio snapshots are debounced/deduped against the periodic 30s snapshot so active trading doesn't produce near-duplicate `portfolio_snapshots` rows
-- [ ] **PERF-03**: `GET /api/portfolio/history` accepts a `limit`/time-range parameter so a long session's P&L chart data doesn't grow unbounded per request
+- [x] **PERF-01**: The frontend's 15s REST reconciliation poll (`useTerminal.ts`) is gated on `document.visibilityState` so a backgrounded tab stops polling
+- [x] **PERF-02**: Trade-triggered portfolio snapshots are debounced/deduped against the periodic 30s snapshot so active trading doesn't produce near-duplicate `portfolio_snapshots` rows
+- [x] **PERF-03**: `GET /api/portfolio/history` accepts a `limit`/time-range parameter so a long session's P&L chart data doesn't grow unbounded per request
 
 ### Dependency Drift
 
@@ -57,9 +57,9 @@ Populated during roadmap creation.
 | TEST-02 | Phase 2 | Complete |
 | TEST-03 | Phase 2 | Complete |
 | TEST-04 | Phase 2 | Complete |
-| PERF-01 | Phase 3 | Pending |
-| PERF-02 | Phase 3 | Pending |
-| PERF-03 | Phase 3 | Pending |
+| PERF-01 | Phase 3 | Complete |
+| PERF-02 | Phase 3 | Complete |
+| PERF-03 | Phase 3 | Complete |
 | DEPS-01 | Phase 4 | Pending |
 | DEPS-02 | Phase 4 | Pending |
 | DEPS-03 | Phase 4 | Pending |

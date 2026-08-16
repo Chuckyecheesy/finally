@@ -12,7 +12,7 @@ This milestone closes out every reliability, coverage, performance, and dependen
 
 - [x] **Phase 1: Fragile Area Fixes & Their Test Coverage** - Chat-router import failures and stale-price P&L stop failing silently, backed by new tests for both paths
 - [x] **Phase 2: Test Coverage Expansion** - Close the simulator-scale, Massive-integration, and frontend-component test coverage gaps
-- [ ] **Phase 3: Performance Hardening** - Visibility-gated polling, deduped snapshots, bounded history endpoint
+- [x] **Phase 3: Performance Hardening** - Visibility-gated polling, deduped snapshots, bounded history endpoint
 - [ ] **Phase 4: Dependency Upgrades** - Next.js, TypeScript, ESLint, and React brought current, with static export re-verified
 
 ## Phase Details
@@ -59,9 +59,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 03-01-PLAN.md — Frontend: visibility-gated 15s reconciliation poll in useTerminal.ts (PERF-01)
-- [ ] 03-02-PLAN.md — Backend: dedup periodic portfolio snapshots against recent trade-triggered writes (PERF-02)
-- [ ] 03-03-PLAN.md — Backend + frontend: bounded GET /api/portfolio/history with limit/since (PERF-03)
+- [x] 03-01-PLAN.md — Frontend: visibility-gated 15s reconciliation poll in useTerminal.ts (PERF-01)
+- [x] 03-02-PLAN.md — Backend: dedup periodic portfolio snapshots against recent trade-triggered writes (PERF-02)
+- [x] 03-03-PLAN.md — Backend + frontend: bounded GET /api/portfolio/history with limit/since (PERF-03)
 
 ### Phase 4: Dependency Upgrades
 **Goal**: Frontend dependencies are brought current (Next.js, TypeScript, ESLint, React), with the load-bearing static export re-verified to build cleanly after the Next.js major-version bump.
@@ -84,5 +84,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Fragile Area Fixes & Their Test Coverage | 2/2 | Complete | 2026-08-16 |
 | 2. Test Coverage Expansion | 4/4 | Complete | 2026-08-16 |
-| 3. Performance Hardening | 0/3 | Not started | - |
+| 3. Performance Hardening | 3/3 | Complete | 2026-08-16 |
 | 4. Dependency Upgrades | 0/TBD | Not started | - |
