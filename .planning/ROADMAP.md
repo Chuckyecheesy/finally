@@ -10,7 +10,7 @@ This milestone closes out every reliability, coverage, performance, and dependen
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
-- [ ] **Phase 1: Fragile Area Fixes & Their Test Coverage** - Chat-router import failures and stale-price P&L stop failing silently, backed by new tests for both paths
+- [x] **Phase 1: Fragile Area Fixes & Their Test Coverage** - Chat-router import failures and stale-price P&L stop failing silently, backed by new tests for both paths
 - [ ] **Phase 2: Test Coverage Expansion** - Close the simulator-scale, Massive-integration, and frontend-component test coverage gaps
 - [ ] **Phase 3: Performance Hardening** - Visibility-gated polling, deduped snapshots, bounded history endpoint
 - [ ] **Phase 4: Dependency Upgrades** - Next.js, TypeScript, ESLint, and React brought current, with static export re-verified
@@ -29,7 +29,7 @@ This milestone closes out every reliability, coverage, performance, and dependen
 **Plans**: 2 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Chat-router import failure becomes a hard startup error; tests for that path and `_DeferredMarketSource` pre-startup access (FRAG-01, TEST-01)
+- [x] 01-01-PLAN.md — Chat-router import failure becomes a hard startup error; tests for that path and `_DeferredMarketSource` pre-startup access (FRAG-01, TEST-01)
 - [x] 01-02-PLAN.md — `PositionOut.stale` flag for cache-miss cost-basis valuation, plumbed through the frontend Position contract (FRAG-02)
 
 ### Phase 2: Test Coverage Expansion
@@ -73,7 +73,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Fragile Area Fixes & Their Test Coverage | 1/2 | In Progress|  |
+| 1. Fragile Area Fixes & Their Test Coverage | 2/2 | Complete | 2026-08-16 |
 | 2. Test Coverage Expansion | 0/TBD | Not started | - |
 | 3. Performance Hardening | 0/TBD | Not started | - |
 | 4. Dependency Upgrades | 0/TBD | Not started | - |
