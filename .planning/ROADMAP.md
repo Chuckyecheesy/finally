@@ -26,7 +26,11 @@ This milestone closes out every reliability, coverage, performance, and dependen
   2. `GET /api/portfolio` response includes a `stale: bool` field per position, true when the position is priced at `avg_cost` because the price cache has no data for that ticker
   3. `backend/tests/api/test_app.py` has passing tests covering `_DeferredMarketSource`'s pre-startup-access `RuntimeError` path and the chat-router import-failure path
   4. All 305 existing tests (266 backend + 39 frontend) still pass
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Chat-router import failure becomes a hard startup error; tests for that path and `_DeferredMarketSource` pre-startup access (FRAG-01, TEST-01)
+- [ ] 01-02-PLAN.md — `PositionOut.stale` flag for cache-miss cost-basis valuation, plumbed through the frontend Position contract (FRAG-02)
 
 ### Phase 2: Test Coverage Expansion
 **Goal**: The three remaining test-coverage gaps flagged in the audit — simulator behavior at scale, Massive-API integration, and untested frontend visual components — are closed so regressions in these areas fail at test time instead of only in production or via the slower E2E suite.
@@ -69,7 +73,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Fragile Area Fixes & Their Test Coverage | 0/TBD | Not started | - |
+| 1. Fragile Area Fixes & Their Test Coverage | 0/2 | Not started | - |
 | 2. Test Coverage Expansion | 0/TBD | Not started | - |
 | 3. Performance Hardening | 0/TBD | Not started | - |
 | 4. Dependency Upgrades | 0/TBD | Not started | - |
