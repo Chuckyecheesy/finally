@@ -52,6 +52,59 @@ router = create_stream_router(price_cache)  # Returns FastAPI APIRouter
 
 Default tickers: AAPL, GOOGL, MSFT, AMZN, TSLA, NVDA, META, JPM, V, NFLX. Seed prices and per-ticker volatility/drift params are in `app/market/seed_prices.py`.
 
+## Database API
+
+`app/db/` is the only layer that issues SQL. Import everything from the package:
+
+```python
+from app.db import execute_trade, list_positions, DuplicateTickerError
+```
+
+Every function takes an optional trailing `conn: sqlite3.Connection | None = None` so
+callers can group writes into one transaction; omit it and the call manages its own.
+`user_id` defaults to `DEFAULT_USER_ID` ("default") everywhere.
+
+- **Lifecycle** — `init_db()` at FastAPI startup (creates schema + seeds; idempotent).
+- **Profile** — `get_profile()`, `get_cash_balance()`, `update_cash_balance(user_id, new_balance)`.
+- **Watchlist** — `list_watchlist()`, `add_to_watchlist(ticker)`, `remove_from_watchlist(ticker)`, `is_watched(ticker)`.
+- **Positions** — `list_positions()`, `get_position(ticker)`.
+- **Trades** — `execute_trade(ticker, side, quantity, current_price)`, `list_trades(limit=None)`.
+  Callers resolve `current_price` from `PriceCache.get_price` first; a `None` price is a
+  404 (`UnknownTickerError`) raised by the caller, not by this function.
+- **Snapshots** — `record_snapshot(total_value)`, `list_snapshots(since=None, limit=None)`.
+- **Chat** — `add_chat_message(role, content, actions=None)`, `list_recent_chat_messages(limit=20)`.
+
+Errors are `RepositoryError` subclasses; each docstring names the HTTP status the API
+layer should map it to: `DuplicateTickerError` 409, `TickerNotFoundError` /
+`UnknownTickerError` 404, `InvalidTradeError` / `InvalidTickerError` 400,
+`ProfileNotFoundError` 500.
+
+Tests point at a temp database via the `FINALLY_DB_PATH` env var — see the `temp_db`
+fixture in `tests/db/conftest.py`.
+
+## LLM Chat API
+
+`app/llm/` owns `POST /api/chat`. The API layer needs one import:
+
+```python
+from app.llm import create_chat_router
+
+router = create_chat_router(price_cache, market_source)  # market_source optional but expected
+```
+
+The router needs `market_source` so watchlist changes made through chat start/stop
+price tracking, mirroring what the REST watchlist endpoints do.
+
+- **`schemas.py`** — `ChatRequest`, `LLMStructuredResponse` (the structured output
+  contract), `ChatResponse` (message + `trade_results` / `watchlist_results`, each
+  entry `status` "executed" or "failed" with an `error` string).
+- **`client.py`** — LiteLLM -> OpenRouter -> Cerebras, `openrouter/openai/gpt-oss-120b`.
+  Never raises; a failed or malformed completion degrades to an apology with no actions.
+- **`mock.py`** — offline responder used when `LLM_MOCK=true`. Its module docstring is
+  the authoritative list of supported trigger phrases (E2E tests depend on them verbatim).
+- **`executor.py`** — runs trades sequentially through `app.db.execute_trade`; not
+  atomic, each action reports its own outcome.
+
 ## Running Tests
 
 ```bash

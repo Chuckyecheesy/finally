@@ -1,0 +1,145 @@
+@import "tailwindcss";
+
+@theme {
+  --color-terminal-bg: #0d1117;
+  --color-terminal-panel: #131820;
+  --color-terminal-raised: #182029;
+  --color-terminal-line: #232b38;
+  --color-terminal-line-bright: #33404f;
+
+  --color-terminal-text: #d7dee9;
+  --color-terminal-dim: #7b8798;
+  --color-terminal-faint: #4d5867;
+
+  --color-accent: #ecad0a;
+  --color-primary: #209dd7;
+  --color-secondary: #753991;
+
+  --color-up: #26d07c;
+  --color-down: #f6465d;
+
+  --font-mono: var(--font-jetbrains), ui-monospace, "SF Mono", Menlo, monospace;
+  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    background-color: var(--color-terminal-bg);
+    color: var(--color-terminal-text);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv05", "ss01";
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+
+  /* Tabular figures everywhere numbers live, so ticking digits never reflow. */
+  .tnum {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 1px;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-terminal-line-bright);
+  }
+}
+
+@layer components {
+  /* Micro-label used as every panel's header: the terminal's structural voice. */
+  .eyebrow {
+    font-family: var(--font-sans);
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-terminal-dim);
+  }
+}
+
+/* Price flash: a brief tinted wash that decays over ~500ms (PLAN §2). The
+   element is remounted with a new key on each tick so the animation restarts. */
+@keyframes flash-up {
+  from {
+    background-color: color-mix(in srgb, var(--color-up) 26%, transparent);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+@keyframes flash-down {
+  from {
+    background-color: color-mix(in srgb, var(--color-down) 26%, transparent);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+.flash-up {
+  animation: flash-up 500ms ease-out;
+}
+
+.flash-down {
+  animation: flash-down 500ms ease-out;
+}
+
+/* Tick rail: the 2px bar on each watchlist row's leading edge. It decays more
+   slowly than the flash, so a glance down the rail reads as recent activity
+   heat across the whole list at once. */
+@keyframes rail-up {
+  from {
+    background-color: var(--color-up);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+@keyframes rail-down {
+  from {
+    background-color: var(--color-down);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+.rail-up {
+  animation: rail-up 1400ms ease-out;
+}
+
+.rail-down {
+  animation: rail-down 1400ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flash-up,
+  .flash-down,
+  .rail-up,
+  .rail-down {
+    animation-duration: 1ms;
+  }
+
+  *,
+  *::before,
+  *::after {
+    transition-duration: 1ms !important;
+  }
+}
