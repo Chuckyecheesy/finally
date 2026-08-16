@@ -15,9 +15,9 @@ All requirements below are hardening fixes to the already-shipped v1 application
 ### Test Coverage
 
 - [ ] **TEST-01**: Backend tests cover `_DeferredMarketSource`'s pre-startup-access `RuntimeError` path and the chat-router import-failure path in `backend/app/main.py`
-- [ ] **TEST-02**: A GBM/Cholesky stability test exercises a large (50+), non-default ticker watchlist in `backend/app/market/simulator.py`, asserting the correlation matrix stays well-behaved and prices stay positive
-- [ ] **TEST-03**: A realistically-mocked integration test exercises a full Massive API poll cycle feeding the SSE stream and portfolio valuation together (beyond `massive_client.py`'s existing unit-level parsing tests)
-- [ ] **TEST-04**: Unit tests exist for `Heatmap.tsx`, `PnlChart.tsx`, `PriceChart.tsx`, `Sparkline.tsx`, `TradeBar.tsx`, and `Panel.tsx` (currently untested frontend components)
+- [x] **TEST-02**: A GBM/Cholesky stability test exercises a large (50+), non-default ticker watchlist in `backend/app/market/simulator.py`, asserting the correlation matrix stays well-behaved and prices stay positive
+- [x] **TEST-03**: A realistically-mocked integration test exercises a full Massive API poll cycle feeding the SSE stream and portfolio valuation together (beyond `massive_client.py`'s existing unit-level parsing tests)
+- [x] **TEST-04**: Unit tests exist for `Heatmap.tsx`, `PnlChart.tsx`, `PriceChart.tsx`, `Sparkline.tsx`, `TradeBar.tsx`, and `Panel.tsx` (currently untested frontend components)
 
 ### Performance
 
@@ -54,9 +54,9 @@ Populated during roadmap creation.
 | FRAG-01 | Phase 1 | Pending |
 | FRAG-02 | Phase 1 | Complete |
 | TEST-01 | Phase 1 | Pending |
-| TEST-02 | Phase 2 | Pending |
-| TEST-03 | Phase 2 | Pending |
-| TEST-04 | Phase 2 | Pending |
+| TEST-02 | Phase 2 | Complete |
+| TEST-03 | Phase 2 | Complete |
+| TEST-04 | Phase 2 | Complete |
 | PERF-01 | Phase 3 | Pending |
 | PERF-02 | Phase 3 | Pending |
 | PERF-03 | Phase 3 | Pending |

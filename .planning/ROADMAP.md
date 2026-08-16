@@ -11,7 +11,7 @@ This milestone closes out every reliability, coverage, performance, and dependen
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
 - [x] **Phase 1: Fragile Area Fixes & Their Test Coverage** - Chat-router import failures and stale-price P&L stop failing silently, backed by new tests for both paths
-- [ ] **Phase 2: Test Coverage Expansion** - Close the simulator-scale, Massive-integration, and frontend-component test coverage gaps
+- [x] **Phase 2: Test Coverage Expansion** - Close the simulator-scale, Massive-integration, and frontend-component test coverage gaps
 - [ ] **Phase 3: Performance Hardening** - Visibility-gated polling, deduped snapshots, bounded history endpoint
 - [ ] **Phase 4: Dependency Upgrades** - Next.js, TypeScript, ESLint, and React brought current, with static export re-verified
 
@@ -42,10 +42,10 @@ Plans:
   3. `Heatmap.tsx`, `PnlChart.tsx`, `PriceChart.tsx`, `Sparkline.tsx`, `TradeBar.tsx`, and `Panel.tsx` each have a passing colocated `*.test.tsx` file
   4. Full backend (`uv run pytest`) and frontend (`npm test`) suites pass with the new tests included
 **Plans**: 4 plans
-- [ ] 02-01-PLAN.md — Backend: 50+ ticker GBM/Cholesky correlation stability test (TEST-02)
-- [ ] 02-02-PLAN.md — Backend: Massive poll -> SSE stream + portfolio valuation integration test (TEST-03)
-- [ ] 02-03-PLAN.md — Frontend: Panel, Sparkline, TradeBar component tests (TEST-04)
-- [ ] 02-04-PLAN.md — Frontend: Heatmap, PnlChart, PriceChart component tests (TEST-04)
+- [x] 02-01-PLAN.md — Backend: 50+ ticker GBM/Cholesky correlation stability test (TEST-02)
+- [x] 02-02-PLAN.md — Backend: Massive poll -> SSE stream + portfolio valuation integration test (TEST-03)
+- [x] 02-03-PLAN.md — Frontend: Panel, Sparkline, TradeBar component tests (TEST-04)
+- [x] 02-04-PLAN.md — Frontend: Heatmap, PnlChart, PriceChart component tests (TEST-04)
 
 ### Phase 3: Performance Hardening
 **Goal**: The three perf nits flagged in the audit — an unthrottled background-tab poll, near-duplicate portfolio snapshots during active trading, and an unbounded P&L history response — are fixed.
@@ -78,6 +78,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Fragile Area Fixes & Their Test Coverage | 2/2 | Complete | 2026-08-16 |
-| 2. Test Coverage Expansion | 0/TBD | Not started | - |
+| 2. Test Coverage Expansion | 4/4 | Complete | 2026-08-16 |
 | 3. Performance Hardening | 0/TBD | Not started | - |
 | 4. Dependency Upgrades | 0/TBD | Not started | - |
