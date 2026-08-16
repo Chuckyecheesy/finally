@@ -12,6 +12,7 @@ import asyncio
 import contextlib
 import logging
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -24,7 +25,7 @@ from app.api import (
     create_watchlist_router,
     register_exception_handlers,
 )
-from app.db import DEFAULT_USER_ID, init_db, list_watchlist, record_snapshot
+from app.db import DEFAULT_USER_ID, init_db, list_snapshots, list_watchlist, record_snapshot
 from app.market import (
     MarketDataSource,
     PriceCache,
@@ -35,10 +36,28 @@ from app.market import (
 logger = logging.getLogger(__name__)
 
 SNAPSHOT_INTERVAL_SECONDS = 30.0
+# PLAN.md §7: a snapshot is recorded on every trade and every periodic tick.
+# Active trading right at a 30s tick boundary can otherwise produce two
+# near-duplicate rows seconds apart, adding noise without signal to the P&L
+# chart (CONCERNS.md, PERF-02) — this window skips a periodic write when a
+# recent-enough snapshot (trade-triggered or prior periodic) already exists.
+SNAPSHOT_DEDUP_WINDOW_SECONDS = 5.0
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
 
 def _record_snapshot(price_cache: PriceCache, user_id: str = DEFAULT_USER_ID) -> None:
+    """Record a portfolio snapshot, skipping if one was just recorded (see above).
+
+    Shared by both the startup call and the periodic loop. The startup call
+    typically records immediately since it runs against an empty or
+    long-stale table; on a restart within the dedup window it is also
+    skipped, an accepted low-risk edge case rather than a bug.
+    """
+    recent = list_snapshots(user_id=user_id, limit=1)
+    if recent:
+        elapsed = (datetime.now(UTC) - datetime.fromisoformat(recent[0].recorded_at)).total_seconds()
+        if elapsed < SNAPSHOT_DEDUP_WINDOW_SECONDS:
+            return
     record_snapshot(total_value=build_portfolio(price_cache, user_id).total_value, user_id=user_id)
 
 
