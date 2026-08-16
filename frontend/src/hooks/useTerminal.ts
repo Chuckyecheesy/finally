@@ -24,6 +24,7 @@ export function livePositions(
       current_price: live,
       unrealized_pnl: pnl,
       unrealized_pnl_percent: costBasis > 0 ? (pnl / costBasis) * 100 : 0,
+      stale: false,
     };
   });
 }

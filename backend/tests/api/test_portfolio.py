@@ -128,3 +128,35 @@ def test_history_starts_empty_and_grows_with_each_trade(client):
     assert [point["recorded_at"] for point in history] == sorted(
         point["recorded_at"] for point in history
     )
+
+
+def test_position_is_not_stale_when_price_is_cached(client):
+    buy(client, "AAPL", 10)
+
+    (position,) = client.get("/api/portfolio").json()["positions"]
+    assert position["stale"] is False
+
+
+def test_position_is_stale_when_price_cache_has_no_price(client, price_cache):
+    buy(client, "AAPL", 10)
+    price_cache.remove("AAPL")
+
+    (position,) = client.get("/api/portfolio").json()["positions"]
+    assert position["stale"] is True
+    assert position["current_price"] == pytest.approx(position["avg_cost"])
+    assert position["unrealized_pnl"] == pytest.approx(0.0)
+
+
+def test_break_even_position_is_not_stale(client, price_cache):
+    buy(client, "AAPL", 10)
+    price_cache.update("AAPL", 100.0)
+
+    (position,) = client.get("/api/portfolio").json()["positions"]
+    assert position["stale"] is False
+    assert position["unrealized_pnl"] == pytest.approx(0.0)
+
+
+def test_trade_response_portfolio_carries_stale(client):
+    response = buy(client, "AAPL", 10)
+    (position,) = response.json()["portfolio"]["positions"]
+    assert "stale" in position

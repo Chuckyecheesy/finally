@@ -13,6 +13,7 @@ const positions: Position[] = [
     current_price: 202,
     unrealized_pnl: 120,
     unrealized_pnl_percent: 6.3158,
+    stale: false,
   },
   {
     ticker: "TSLA",
@@ -21,6 +22,7 @@ const positions: Position[] = [
     current_price: 240,
     unrealized_pnl: -50,
     unrealized_pnl_percent: -4,
+    stale: false,
   },
 ];
 
@@ -92,5 +94,15 @@ describe("livePositions", () => {
     );
     expect(aapl.unrealized_pnl).toBeCloseTo(-100);
     expect(aapl.unrealized_pnl_percent).toBeLessThan(0);
+  });
+
+  it("clears stale when a live price overlays the position", () => {
+    const [aapl] = livePositions([{ ...positions[0], stale: true }], prices);
+    expect(aapl.stale).toBe(false);
+  });
+
+  it("leaves stale untouched when no live price is available", () => {
+    const [tsla] = livePositions([{ ...positions[1], stale: true }], prices);
+    expect(tsla.stale).toBe(true);
   });
 });

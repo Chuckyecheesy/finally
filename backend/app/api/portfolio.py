@@ -25,15 +25,16 @@ def build_portfolio(price_cache: PriceCache, user_id: str = DEFAULT_USER_ID) -> 
     A ticker missing from the cache falls back to its average cost, which
     values the position at break-even rather than crashing or dropping it —
     prices can legitimately be absent for a symbol Massive has no data for
-    (PLAN.md §8).
+    (PLAN.md §8). This fallback is flagged via `stale=True` on the position
+    so callers can distinguish it from a genuine break-even.
     """
     cash_balance = get_cash_balance(user_id)
     positions: list[PositionOut] = []
 
     for position in list_positions(user_id):
-        current_price = price_cache.get_price(position.ticker)
-        if current_price is None:
-            current_price = position.avg_cost
+        cached_price = price_cache.get_price(position.ticker)
+        stale = cached_price is None
+        current_price = position.avg_cost if stale else cached_price
 
         market_value = position.quantity * current_price
         cost_basis = position.quantity * position.avg_cost
@@ -49,6 +50,7 @@ def build_portfolio(price_cache: PriceCache, user_id: str = DEFAULT_USER_ID) -> 
                 unrealized_pnl_percent=(
                     (unrealized_pnl / cost_basis * 100) if cost_basis else 0.0
                 ),
+                stale=stale,
             )
         )
 

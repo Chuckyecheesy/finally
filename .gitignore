@@ -14,8 +14,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+/lib/
+/lib64/
 parts/
 sdist/
 var/
@@ -60,6 +60,11 @@ cover/
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
+
+# FinAlly runtime database (db/finally.db created at runtime; only .gitkeep is tracked)
+db/*.db
+db/*.db-wal
+db/*.db-shm
 
 # Flask stuff:
 instance/
@@ -136,13 +141,17 @@ celerybeat.pid
 
 # Environments
 .env
+.env.*
+!.env.example
+!.env.sample
 .envrc
 .venv
-env/
 venv/
+env/
 ENV/
 env.bak/
 venv.bak/
+.conda/
 
 # Spyder project settings
 .spyderproject

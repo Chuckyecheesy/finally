@@ -15,6 +15,9 @@ class PositionOut(BaseModel):
     market_value: float
     unrealized_pnl: float
     unrealized_pnl_percent: float
+    # True when priced at avg_cost because the price cache has no price for
+    # this ticker — not a genuine break-even position.
+    stale: bool = False
 
 
 class PortfolioOut(BaseModel):
