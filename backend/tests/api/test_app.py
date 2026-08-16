@@ -124,3 +124,32 @@ async def test_deferred_source_methods_all_raise_before_startup(temp_db, monkeyp
         await deferred.remove_ticker("AAPL")
     with pytest.raises(RuntimeError):
         deferred.get_tickers()
+
+
+def test_periodic_snapshot_is_skipped_when_a_recent_snapshot_exists(temp_db, price_cache):
+    """A trade-triggered snapshot moments ago should suppress the next periodic tick."""
+    from app.db import record_snapshot
+
+    record_snapshot(total_value=100.0)
+
+    main._record_snapshot(price_cache)
+
+    assert len(list_snapshots()) == 1
+
+
+def test_periodic_snapshot_is_recorded_when_the_last_one_is_stale(temp_db, price_cache):
+    """A periodic tick should still record when the most recent snapshot is well outside the dedup window."""
+    from app.db import record_snapshot
+
+    record_snapshot(total_value=100.0, recorded_at="2020-01-01T00:00:00+00:00")
+
+    main._record_snapshot(price_cache)
+
+    assert len(list_snapshots()) == 2
+
+
+def test_periodic_snapshot_is_recorded_when_no_prior_snapshot_exists(temp_db, price_cache):
+    """The dedup check must not crash or wrongly skip when `list_snapshots()` returns empty."""
+    main._record_snapshot(price_cache)
+
+    assert len(list_snapshots()) == 1
