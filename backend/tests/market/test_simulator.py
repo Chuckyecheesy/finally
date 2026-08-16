@@ -1,5 +1,7 @@
 """Tests for GBMSimulator."""
 
+import numpy as np
+
 from app.market.seed_prices import SEED_PRICES
 from app.market.simulator import GBMSimulator
 
@@ -145,3 +147,83 @@ class TestGBMSimulator:
             prices = sim.step()
             assert set(prices.keys()) == set(SEED_PRICES.keys())
             assert all(p > 0 for p in prices.values())
+
+
+class TestGBMSimulatorAtScale:
+    """The Cholesky/correlation math has only ever been exercised at the default
+    10-ticker scale. A correlation-constant change, or a future large custom
+    watchlist, could raise LinAlgError (non-positive-semi-definite matrix) with
+    no test catching it before production — these tests exercise a 60-ticker,
+    non-default watchlist (10 default sector tickers + 50 synthetic unknowns)
+    to close that gap.
+    """
+
+    SYNTHETIC_TICKERS = [f"SYN{i:03d}" for i in range(50)]
+
+    def _large_watchlist(self) -> list[str]:
+        return list(SEED_PRICES.keys()) + list(self.SYNTHETIC_TICKERS)
+
+    def _expected_correlation_matrix(self, tickers: list[str]) -> np.ndarray:
+        n = len(tickers)
+        expected = np.eye(n)
+        for i in range(n):
+            for j in range(i + 1, n):
+                rho = GBMSimulator._pairwise_correlation(tickers[i], tickers[j])
+                expected[i, j] = rho
+                expected[j, i] = rho
+        return expected
+
+    def test_large_non_default_watchlist_cholesky_is_well_behaved(self):
+        """A 60-ticker, non-default watchlist must produce a Cholesky factor that
+        truly reconstructs the intended correlation matrix, not merely "not raise".
+        """
+        tickers = self._large_watchlist()
+        assert len(tickers) == 60
+        assert set(tickers) != set(SEED_PRICES.keys())
+
+        sim = GBMSimulator(tickers=tickers)
+        assert sim._cholesky is not None
+        assert sim._cholesky.shape == (60, 60)
+
+        expected_corr = self._expected_correlation_matrix(sim._tickers)
+
+        # The Cholesky factor must reconstruct the intended correlation matrix.
+        reconstructed = sim._cholesky @ sim._cholesky.T
+        assert np.allclose(reconstructed, expected_corr, atol=1e-8)
+
+        # Independent well-behaved check: the correlation matrix must be
+        # positive semi-definite (no negative eigenvalues beyond float noise).
+        eigenvalues = np.linalg.eigvalsh(expected_corr)
+        assert np.all(eigenvalues > -1e-8)
+
+    def test_large_watchlist_prices_stay_positive_over_many_steps(self):
+        """Prices must stay strictly positive across many steps for a large,
+        non-default watchlist (GBM's exp() guarantees this mathematically, but
+        this proves it holds at scale with correlated draws too)."""
+        sim = GBMSimulator(tickers=self._large_watchlist())
+        tracked = set(sim.get_tickers())
+
+        for _ in range(500):
+            prices = sim.step()
+            assert set(prices.keys()) == tracked
+            assert all(p > 0 for p in prices.values())
+
+    def test_cholesky_stable_after_add_remove_churn_at_scale(self):
+        """Cholesky must remain well-behaved after add/remove churn at scale."""
+        sim = GBMSimulator(tickers=self._large_watchlist())
+
+        for i in range(50, 55):
+            sim.add_ticker(f"SYN{i:03d}")
+
+        for i in range(0, 5):
+            sim.remove_ticker(f"SYN{i:03d}")
+
+        remaining = sim.get_tickers()
+        assert len(remaining) == 60
+
+        assert sim._cholesky is not None
+        assert sim._cholesky.shape == (len(remaining), len(remaining))
+
+        prices = sim.step()
+        assert set(prices.keys()) == set(remaining)
+        assert all(p > 0 for p in prices.values())
