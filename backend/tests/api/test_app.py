@@ -1,4 +1,7 @@
-"""The real app factory and its startup/shutdown sequence."""
+"""The real app factory and its startup/shutdown sequence, and chat-router mounting."""
+
+import logging
+import sys
 
 import pytest
 from fastapi.testclient import TestClient
@@ -78,3 +81,46 @@ def test_stream_route_is_mounted(started_app):
     paths = {route.path for route in app.routes}
     assert "/api/stream/prices" in paths
     assert {"/api/portfolio", "/api/portfolio/trade", "/api/watchlist"} <= paths
+
+
+def test_chat_route_is_mounted(started_app):
+    client, app, _ = started_app
+    paths = {route.path for route in app.routes}
+    assert "/api/chat" in paths
+
+
+def test_chat_router_import_failure_raises_at_app_creation(monkeypatch):
+    monkeypatch.setitem(sys.modules, "app.llm.router", None)
+
+    with pytest.raises(RuntimeError) as excinfo:
+        main.create_app()
+
+    assert "app.llm.router" in str(excinfo.value)
+    assert isinstance(excinfo.value.__cause__, ImportError)
+
+
+def test_chat_router_import_failure_is_logged_as_error(monkeypatch, caplog):
+    monkeypatch.setitem(sys.modules, "app.llm.router", None)
+
+    with caplog.at_level(logging.ERROR):
+        with pytest.raises(RuntimeError):
+            main.create_app()
+
+    assert any("app.llm.router" in record.getMessage() for record in caplog.records)
+
+
+async def test_deferred_source_methods_all_raise_before_startup(temp_db, monkeypatch):
+    _use_fake_source(monkeypatch)
+    app = main.create_app()
+    deferred = main._DeferredMarketSource(app)
+
+    with pytest.raises(RuntimeError):
+        await deferred.start(["AAPL"])
+    with pytest.raises(RuntimeError):
+        await deferred.stop()
+    with pytest.raises(RuntimeError):
+        await deferred.add_ticker("AAPL")
+    with pytest.raises(RuntimeError):
+        await deferred.remove_ticker("AAPL")
+    with pytest.raises(RuntimeError):
+        deferred.get_tickers()
